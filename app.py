@@ -3,7 +3,7 @@ import pandas as pd
 from models.database import DatabaseConnection
 from models.data_repository import DataRepository
 from models.visualization import VisualizationService
-from utils import format_datetime_for_display
+from utils import format_datetime_for_display, get_aqi_category, analyze_peak_hours
 
 
 @st.cache_data(ttl=10)
@@ -40,6 +40,77 @@ class StreamlitApp:
         st.set_page_config(layout="wide", page_title="Heatmap Traffic & Polusi")
         st.title("🚦 Heatmap Traffic & Polusi Jakarta (Real-Time)")
 
+    def display_aqi_legend(self):
+        """Display AQI legend with color categories."""
+        st.markdown("### 📊 Legenda Kualitas Udara (AQI)")
+        
+        # Create legend items
+        legend_data = [
+            (0, 50, "Good", "#4CAF50"),
+            (50, 100, "Moderate", "#FFEB3B"),
+            (100, 150, "Unhealthy for Sensitive Groups", "#FF9800"),
+            (150, 200, "Unhealthy", "#F44336"),
+            (200, 300, "Very Unhealthy", "#9C27B0"),
+            (300, 500, "Hazardous", "#7B1FA2")
+        ]
+        
+        # Display legend as a styled table
+        for min_val, max_val, category, color in legend_data:
+            st.markdown(
+                f"""
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <div style="width: 60px; height: 25px; background-color: {color}; 
+                                border-radius: 4px; margin-right: 12px; border: 1px solid #ddd;
+                                display: flex; align-items: center; justify-content: center;
+                                color: white; font-weight: bold; font-size: 11px;">
+                        {min_val}-{max_val}
+                    </div>
+                    <div style="font-size: 14px; color: white;">
+                        {category}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+    def display_peak_hours(self, df):
+        """Display peak hours analysis."""
+        st.markdown("### ⏰ Analisis Jam Puncak (UTC+7)")
+        
+        peak_data = analyze_peak_hours(df)
+        
+        if peak_data:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 🌫️ Polusi Udara (AQI)")
+                st.metric(
+                    label="Jam Puncak Polusi",
+                    value=f"{peak_data['peak_aqi_hour']:02d}:00 WIB",
+                    delta=f"AQI Rata-rata: {peak_data['peak_aqi_value']:.1f}"
+                )
+                
+            with col2:
+                st.markdown("#### 🚗 Kemacetan Lalu Lintas")
+                st.metric(
+                    label="Jam Puncak Kemacetan",
+                    value=f"{peak_data['peak_traffic_hour']:02d}:00 WIB",
+                    delta=f"Level Rata-rata: {peak_data['peak_traffic_value']:.1f}"
+                )
+            
+            # Show hourly breakdown in expander
+            with st.expander("📈 Lihat Data Per Jam"):
+                st.dataframe(
+                    peak_data['hourly_stats'].reset_index().rename(columns={
+                        'hour': 'Jam (WIB)',
+                        'aqi_value': 'AQI Rata-rata',
+                        'traffic_level': 'Traffic Level Rata-rata'
+                    }),
+                    use_container_width=True
+                )
+        else:
+            st.info("Data tidak cukup untuk analisis jam puncak")
+
     def display_data(self):
         """Display the heatmap data."""
         # Load data using the cached function
@@ -50,6 +121,17 @@ class StreamlitApp:
         st.info(f"Update Terakhir: **{display_time}**")
 
         if not df.empty:
+            # Create two columns for legend and peak hours
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                self.display_aqi_legend()
+            
+            with col2:
+                self.display_peak_hours(df)
+            
+            st.markdown("---")  # Separator
+            
             # Visualization for AQI
             st.subheader("1. Peta Panas Kualitas Udara (AQI)")
             st.caption("Semakin Merah = Semakin Berpolusi (AQI Tinggi)")
