@@ -40,8 +40,8 @@ class VisualizationService:
                 zoom=10,
                 pitch=0,
             )
-            # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
-            map_style = "mapbox://styles/mapbox/dark-v10"
+            # Use Carto basemap (no API key required)
+            map_style = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
 
             return pdk.Deck(
                 layers=[],
@@ -62,8 +62,8 @@ class VisualizationService:
 
         heatmap_layer_aqi = self.create_heatmap_layer(data, "aqi_clean", "AQI")
 
-        # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
-        map_style = "mapbox://styles/mapbox/dark-v10"
+        # Use Carto basemap (no API key required)
+        map_style = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
 
         return pdk.Deck(
             layers=[heatmap_layer_aqi],
@@ -82,8 +82,8 @@ class VisualizationService:
                 zoom=10,
                 pitch=0,
             )
-            # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
-            map_style = "mapbox://styles/mapbox/dark-v10"
+            # Use Carto basemap (no API key required)
+            map_style = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
 
             return pdk.Deck(
                 layers=[],
@@ -104,8 +104,8 @@ class VisualizationService:
 
         heatmap_layer_traffic = self.create_heatmap_layer(data, "traffic_level", "Traffic")
 
-        # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
-        map_style = "mapbox://styles/mapbox/dark-v10"
+        # Use Carto basemap (no API key required)
+        map_style = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
 
         return pdk.Deck(
             layers=[heatmap_layer_traffic],

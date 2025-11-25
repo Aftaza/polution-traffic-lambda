@@ -100,6 +100,8 @@ To use the application, you need to obtain API keys from:
 - [TomTom API](https://developer.tomtom.com/)
 - [AQICN API](http://aqicn.org/api/)
 
+**Note:** The map visualization uses Carto's free dark basemap, so no Mapbox API token is required.
+
 ## Security Notes
 
 - Never commit your `.env` file with real API keys
