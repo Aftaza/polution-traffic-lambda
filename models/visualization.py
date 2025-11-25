@@ -1,5 +1,6 @@
 import pydeck as pdk
 import pandas as pd
+import os
 from typing import List, Tuple
 
 
@@ -39,10 +40,13 @@ class VisualizationService:
                 zoom=10,
                 pitch=0,
             )
+            # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
+            map_style = "mapbox://styles/mapbox/dark-v10"
+
             return pdk.Deck(
                 layers=[],
                 initial_view_state=view_state,
-                map_style='mapbox://styles/mapbox/dark-v10'
+                map_style=map_style
             )
 
         # Calculate center coordinates, handling potential NaN values
@@ -58,10 +62,13 @@ class VisualizationService:
 
         heatmap_layer_aqi = self.create_heatmap_layer(data, "aqi_clean", "AQI")
 
+        # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
+        map_style = "mapbox://styles/mapbox/dark-v10"
+
         return pdk.Deck(
             layers=[heatmap_layer_aqi],
             initial_view_state=view_state,
-            map_style='mapbox://styles/mapbox/dark-v10',
+            map_style=map_style,
             tooltip={"text": "Lokasi: {location}\nAQI: {aqi_value}"}
         )
 
@@ -75,10 +82,13 @@ class VisualizationService:
                 zoom=10,
                 pitch=0,
             )
+            # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
+            map_style = "mapbox://styles/mapbox/dark-v10"
+
             return pdk.Deck(
                 layers=[],
                 initial_view_state=view_state,
-                map_style='mapbox://styles/mapbox/dark-v10'
+                map_style=map_style
             )
 
         # Calculate center coordinates, handling potential NaN values
@@ -94,9 +104,12 @@ class VisualizationService:
 
         heatmap_layer_traffic = self.create_heatmap_layer(data, "traffic_level", "Traffic")
 
+        # Mapbox style - PyDeck will automatically use MAPBOX_TOKEN environment variable
+        map_style = "mapbox://styles/mapbox/dark-v10"
+
         return pdk.Deck(
             layers=[heatmap_layer_traffic],
             initial_view_state=view_state,
-            map_style='mapbox://styles/mapbox/dark-v10',
+            map_style=map_style,
             tooltip={"text": "Lokasi: {location}\nTraffic Level: {traffic_level}"}
         )
