@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # 1. Database PostgreSQL
   db:
@@ -5,16 +7,16 @@ services:
     container_name: pid-postgres-db
     restart: always
     environment:
-      POSTGRES_DB: pid_db
-      POSTGRES_USER: pid_user
-      POSTGRES_PASSWORD: pid_password
+      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pid_user -d pid_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pid_user} -d ${POSTGRES_DB:-pid_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -27,15 +29,13 @@ services:
     container_name: pid-ingestion-api
     restart: always
     command: python ingestion_service.py
-    ports:
-      - "5000:5000"
+    env_file:
+      - .env
     environment:
       POSTGRES_HOST: db
-      POSTGRES_DB: pid_db
-      POSTGRES_USER: pid_user
-      POSTGRES_PASSWORD: pid_password
-      TOMTOM_API_KEY: "3AS5D7doOmqud96v2sHBTcqg7TBGLDx3"
-      AQICN_TOKEN: "bb97bec86e0cd851da1d9f21c3080c630bbaa18d"
+      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
     depends_on:
       db:
         condition: service_healthy
@@ -47,18 +47,18 @@ services:
     build: .
     container_name: pid-streamlit-app
     restart: always
-    # PERBAIKAN: Perintah standar tanpa flag yang aneh-aneh
     command: streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+    env_file:
+      - .env
     environment:
       POSTGRES_HOST: db
-      POSTGRES_DB: pid_db
-      POSTGRES_USER: pid_user
-      POSTGRES_PASSWORD: pid_password
+      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
     ports:
       - "8501:8501"
     depends_on:
-      ingestion_service:
-        condition: service_started
+      - ingestion_service
     networks:
       - pid_network
 

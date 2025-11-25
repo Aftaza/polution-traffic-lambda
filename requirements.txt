@@ -6,3 +6,4 @@ psycopg2-binary
 pydeck
 flask            # Pustaka untuk membuat API Service
 apscheduler      # Pustaka untuk menjalankan job polling berkala
+python-dotenv    # Library to load environment variables from .env file
