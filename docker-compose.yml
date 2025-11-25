@@ -1,7 +1,46 @@
 version: '3.8'
 
 services:
-  # 1. Database PostgreSQL
+  # 1. Zookeeper for Kafka coordination
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: pid-zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - pid_network
+
+  # 2. Kafka Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: pid-kafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - pid_network
+
+  # 3. Database PostgreSQL
   db:
     image: postgres:14-alpine
     container_name: pid-postgres-db
@@ -23,12 +62,61 @@ services:
     networks:
       - pid_network
 
-  # 2. Ingestion Service API (Penyuplai Data)
+  # 4. Ingestion Service - Kafka Producer (API Polling)
   ingestion_service:
     build: .
-    container_name: pid-ingestion-api
+    container_name: pid-ingestion-producer
     restart: always
     command: python ingestion_service.py
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: traffic-aqi-data
+    depends_on:
+      kafka:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - pid_network
+
+  # 5. Speed Layer - Kafka Consumer (Stream Processing)
+  speed_layer:
+    build: .
+    container_name: pid-speed-layer
+    restart: always
+    command: python speed_layer_service.py
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: traffic-aqi-data
+      KAFKA_CONSUMER_GROUP: speed-layer-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      ingestion_service:
+        condition: service_started
+    networks:
+      - pid_network
+
+  # 6. Batch Layer - Daily Aggregation
+  batch_layer:
+    build: .
+    container_name: pid-batch-layer
+    restart: always
+    command: python batch_layer_service.py
     env_file:
       - .env
     environment:
@@ -42,7 +130,7 @@ services:
     networks:
       - pid_network
 
-  # 3. Streamlit App (Visualisasi)
+  # 7. Streamlit App (Visualization - Serving Layer)
   streamlit_app:
     build: .
     container_name: pid-streamlit-app
@@ -58,7 +146,8 @@ services:
     ports:
       - "8501:8501"
     depends_on:
-      - ingestion_service
+      - speed_layer
+      - batch_layer
     networks:
       - pid_network
 

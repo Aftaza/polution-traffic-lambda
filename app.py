@@ -2,17 +2,20 @@ import streamlit as st
 import pandas as pd
 from models.database import DatabaseConnection
 from models.data_repository import DataRepository
+from models.serving_layer import ServingLayer
 from models.visualization import VisualizationService
 from utils import format_datetime_for_display, get_aqi_category, analyze_peak_hours
 
 
 @st.cache_data(ttl=10)
 def get_realtime_heatmap_data():
-    """Get the latest data for heatmap visualization."""
-    # Create a new database connection and repository to avoid caching issues
+    """Get the latest data for heatmap visualization from Serving Layer."""
+    # Create a new database connection and serving layer to avoid caching issues
     db_connection = DatabaseConnection()
-    repository = DataRepository(db_connection)
-    df, last_update = repository.get_realtime_heatmap_data()
+    serving_layer = ServingLayer(db_connection)
+    
+    # Get combined data from Serving Layer (Speed + Batch)
+    df, last_update = serving_layer.get_combined_heatmap_data()
 
     # Ensure the data types are correct for pydeck
     if not df.empty:
@@ -118,7 +121,39 @@ class StreamlitApp:
 
         # Format time for display
         display_time = format_datetime_for_display(last_update)
-        st.info(f"Update Terakhir: **{display_time}**")
+        
+        # Determine data source (Speed Layer vs Batch Layer)
+        if not df.empty:
+            # Get current time as timezone-aware (UTC)
+            now = pd.Timestamp.now(tz='UTC')
+            max_timestamp = df['timestamp'].max()
+            
+            # Convert max_timestamp to timezone-aware if it's naive
+            if max_timestamp.tz is None:
+                max_timestamp = pd.Timestamp(max_timestamp, tz='UTC')
+            
+            time_diff = (now - max_timestamp).total_seconds() / 60
+            if time_diff < 60:  # Less than 1 hour old
+                data_source = "Speed Layer (Real-time)"
+                badge_color = "#00C851"  # Green
+            else:
+                data_source = "Batch Layer (Historical)"
+                badge_color = "#FF8800"  # Orange
+        else:
+            data_source = "No Data"
+            badge_color = "#999999"
+        
+        # Display update time with data source badge
+        col_time, col_badge = st.columns([3, 1])
+        with col_time:
+            st.info(f"Update Terakhir: **{display_time}**")
+        with col_badge:
+            st.markdown(
+                f'<div style="background-color: {badge_color}; color: white; padding: 8px 12px; '
+                f'border-radius: 4px; text-align: center; font-size: 12px; font-weight: bold;">'
+                f'📡 {data_source}</div>',
+                unsafe_allow_html=True
+            )
 
         if not df.empty:
             # Create two columns for legend and peak hours
