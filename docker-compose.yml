@@ -1,44 +1,47 @@
 version: '3.8'
 
 services:
-  # 1. Zookeeper for Kafka coordination
+  # 1. Zookeeper (Kafka dependency)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: pid-zookeeper
-    restart: always
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
     networks:
       - pid_network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 2. Kafka Broker
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: pid-kafka
-    restart: always
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
       - "9093:9093"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - pid_network
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
       interval: 10s
       timeout: 10s
       retries: 5
-    networks:
-      - pid_network
 
   # 3. Database PostgreSQL
   db:
@@ -46,37 +49,50 @@ services:
     container_name: pid-postgres-db
     restart: always
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
-      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
+      POSTGRES_DB: pid_db
+      POSTGRES_USER: pid_user
+      POSTGRES_PASSWORD: pid_password
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pid_user} -d ${POSTGRES_DB:-pid_db}"]
+      test: ["CMD-SHELL", "pg_isready -U pid_user -d pid_db"]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - pid_network
 
-  # 4. Ingestion Service - Kafka Producer (API Polling)
-  ingestion_service:
+  # 4. Producer Service (Polls APIs → Sends to Kafka)
+  producer:
     build: .
-    container_name: pid-ingestion-producer
+    container_name: pid-producer
     restart: always
-    command: python ingestion_service.py
-    env_file:
-      - .env
+    command: python producer_service.py
     environment:
-      POSTGRES_HOST: db
-      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
-      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC: traffic-aqi-data
+      TOMTOM_API_KEY: "a7wpPeCw8Uom3GEVdUbW7DA4rp1n9hex"
+      AQICN_TOKEN: "bb97bec86e0cd851da1d9f21c3080c630bbaa18d"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - pid_network
+
+  # 5. Consumer Service (Reads from Kafka → Writes to PostgreSQL)
+  consumer:
+    build: .
+    container_name: pid-consumer
+    restart: always
+    command: python consumer_service.py
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_HOST: db
+      POSTGRES_DB: pid_db
+      POSTGRES_USER: pid_user
+      POSTGRES_PASSWORD: pid_password
     depends_on:
       kafka:
         condition: service_healthy
@@ -85,73 +101,26 @@ services:
     networks:
       - pid_network
 
-  # 5. Speed Layer - Kafka Consumer (Stream Processing)
-  speed_layer:
-    build: .
-    container_name: pid-speed-layer
-    restart: always
-    command: python speed_layer_service.py
-    env_file:
-      - .env
-    environment:
-      POSTGRES_HOST: db
-      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
-      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC: traffic-aqi-data
-      KAFKA_CONSUMER_GROUP: speed-layer-consumer
-    depends_on:
-      kafka:
-        condition: service_healthy
-      db:
-        condition: service_healthy
-      ingestion_service:
-        condition: service_started
-    networks:
-      - pid_network
-
-  # 6. Batch Layer - Daily Aggregation
-  batch_layer:
-    build: .
-    container_name: pid-batch-layer
-    restart: always
-    command: python batch_layer_service.py
-    env_file:
-      - .env
-    environment:
-      POSTGRES_HOST: db
-      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
-      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - pid_network
-
-  # 7. Streamlit App (Visualization - Serving Layer)
+  # 6. Streamlit App (Visualisasi)
   streamlit_app:
     build: .
     container_name: pid-streamlit-app
     restart: always
     command: streamlit run app.py --server.port 8501 --server.address 0.0.0.0
-    env_file:
-      - .env
     environment:
       POSTGRES_HOST: db
-      POSTGRES_DB: ${POSTGRES_DB:-pid_db}
-      POSTGRES_USER: ${POSTGRES_USER:-pid_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
+      POSTGRES_DB: pid_db
+      POSTGRES_USER: pid_user
+      POSTGRES_PASSWORD: pid_password
     ports:
       - "8501:8501"
     depends_on:
-      - speed_layer
-      - batch_layer
+      consumer:
+        condition: service_started
     networks:
       - pid_network
 
-# Definisi Jaringan Khusus (Solusi Masalah DNS/Host)
+# Definisi Jaringan Khusus
 networks:
   pid_network:
     driver: bridge

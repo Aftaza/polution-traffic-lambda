@@ -4,9 +4,7 @@ numpy
 requests
 psycopg2-binary
 pydeck
-sqlalchemy
-flask            # Pustaka untuk membuat API Service
-apscheduler      # Pustaka untuk menjalankan job polling berkala
-python-dotenv    # Library to load environment variables from .env file
-kafka-python     # Kafka client for Python
-confluent-kafka  # Confluent's Kafka client (alternative/backup)
+flask
+apscheduler
+kafka-python==2.0.2
+plotly
