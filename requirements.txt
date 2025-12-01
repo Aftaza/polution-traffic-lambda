@@ -10,3 +10,10 @@ apscheduler      # Pustaka untuk menjalankan job polling berkala
 python-dotenv    # Library to load environment variables from .env file
 kafka-python     # Kafka client for Python
 confluent-kafka  # Confluent's Kafka client (alternative/backup)
+
+# Machine Learning & Data Science
+scikit-learn>=1.3.0    # ML models and preprocessing
+matplotlib>=3.7.0      # Plotting and visualization
+seaborn>=0.12.0        # Statistical visualization
+scipy>=1.11.0          # Scientific computing
+xgboost>=2.0.0         # Optional: Gradient boosting (install separately if needed)
