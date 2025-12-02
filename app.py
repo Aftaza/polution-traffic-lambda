@@ -5,10 +5,34 @@ import plotly.graph_objects as go
 from models.database import DatabaseConnection
 from models.serving_layer import ServingLayer
 from models.visualization import VisualizationService
+from datetime import timezone, timedelta
 
 # Konfigurasi Halaman
 st.set_page_config(layout="wide", page_title="Heatmap Traffic & Polusi")
 st.title("🚦 Heatmap Traffic & Polusi Jakarta (Real-Time)")
+
+# Timezone UTC+7 (WIB)
+WIB = timezone(timedelta(hours=7))
+
+def convert_to_wib(dt):
+    """Convert datetime to WIB (UTC+7) for display purposes only."""
+    if pd.isna(dt):
+        return dt
+    
+    # If datetime is naive (no timezone), assume it's UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    # Convert to WIB
+    return dt.astimezone(WIB)
+
+def format_wib_time(dt):
+    """Format datetime as WIB string."""
+    if pd.isna(dt):
+        return "N/A"
+    
+    wib_dt = convert_to_wib(dt)
+    return wib_dt.strftime('%Y-%m-%d %H:%M:%S WIB')
 
 @st.cache_data(ttl=10)
 def get_heatmap_data():
@@ -26,6 +50,24 @@ def get_heatmap_data():
         df['aqi_value'] = df['aqi_clean']  # Ensure both columns exist
         df['traffic_level'] = pd.to_numeric(df['traffic_level'], errors='coerce')
         df = df.dropna(subset=['latitude', 'longitude'])
+        
+        # Convert timestamp to WIB for display
+        df['timestamp_wib'] = df['timestamp'].apply(convert_to_wib)
+        df['formatted_time'] = df['timestamp_wib'].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S WIB') if pd.notna(x) else 'N/A')
+        
+        # Ensure aqi_category exists (if not, compute it)
+        if 'aqi_category' not in df.columns:
+            from models.stream_processor import StreamProcessor
+            df['aqi_category'] = df['aqi_value'].apply(
+                lambda x: StreamProcessor.get_aqi_category(int(x)) if pd.notna(x) else "Unknown"
+            )
+        
+        # Ensure is_peak_hour exists (if not, set to False or compute it)
+        if 'is_peak_hour' not in df.columns:
+            df['is_peak_hour'] = False
+        
+        # Format is_peak_hour for display
+        df['is_peak_hour_display'] = df['is_peak_hour'].apply(lambda x: "Yes" if x else "No")
     
     return df, last_update
 
@@ -65,11 +107,11 @@ if not df_main.empty:
         data_source = "📊 Batch Layer (Historical)"
         badge_color = "orange"
     
-    # Format timestamp
+    # Format timestamp in WIB
     if isinstance(last_update, str):
         display_time = last_update
     else:
-        display_time = last_update.strftime('%Y-%m-%d %H:%M:%S') if last_update else "N/A"
+        display_time = format_wib_time(last_update) if last_update else "N/A"
     
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -108,24 +150,51 @@ with st.sidebar:
 tab1, tab2, tab3, tab4 = st.tabs(["🗺️ Heatmaps", "📊 Peak Hours Analysis", "📈 Statistics", "📋 Raw Data"])
 
 with tab1:
-    st.markdown("## Traffic & Pollution Heatmaps")
+    st.markdown("## Traffic & Pollution Maps")
     
     if not df_main.empty:
-        # TRAFFIC HEATMAP (using VisualizationService with Carto Dark)
-        st.subheader("1️⃣ Peta Panas Kemacetan Lalu Lintas")
-        st.caption("Semakin Merah = Semakin Macet")
+        # TRAFFIC MAP (using VisualizationService with Carto Dark)
+        st.subheader("1️⃣ Peta Kemacetan Lalu Lintas")
+        st.caption("Hover pada pinpoint untuk melihat detail")
         
         traffic_deck = visualization.create_traffic_heatmap(df_main)
         st.pydeck_chart(traffic_deck, use_container_width=True)
         
+        # Traffic Legend
+        st.markdown("**Legenda Traffic Level:**")
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.markdown("🟢 **1** - Lancar")
+        with col2:
+            st.markdown("🟢 **2** - Agak Lancar")
+        with col3:
+            st.markdown("🟡 **3** - Sedang")
+        with col4:
+            st.markdown("🟠 **4** - Padat")
+        with col5:
+            st.markdown("🔴 **5** - Macet Total")
+        
         st.markdown("---")
         
-        # AQI HEATMAP (using VisualizationService with Carto Dark)
-        st.subheader("2️⃣ Peta Panas Kualitas Udara (AQI)")
-        st.caption("Semakin Merah = Semakin Berpolusi")
+        # AQI MAP (using VisualizationService with Carto Dark)
+        st.subheader("2️⃣ Peta Kualitas Udara (AQI)")
+        st.caption("Hover pada pinpoint untuk melihat detail")
         
         aqi_deck = visualization.create_aqi_heatmap(df_main)
         st.pydeck_chart(aqi_deck, use_container_width=True)
+        
+        # AQI Legend - matching reference image
+        st.markdown("**Legenda AQI:**")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("😊 **0-50** - Good")
+            st.markdown("😐 **50-100** - Moderate")
+        with col2:
+            st.markdown("😷 **100-150** - Unhealthy for Sensitive Groups")
+            st.markdown("😨 **150-200** - Unhealthy")
+        with col3:
+            st.markdown("😱 **200-300** - Very Unhealthy")
+            st.markdown("☠️ **300-500** - Hazardous")
     else:
         st.warning("⏳ Menunggu data... Pastikan semua services berjalan.")
 
@@ -254,8 +323,7 @@ with tab3:
                 fig_category = px.pie(
                     values=category_dist.values,
                     names=category_dist.index,
-                    title='AQI Category Distribution',
-                    color_discrete_sequence=px.colors.sequential.RdYlGn_r
+                    title='AQI Category Distribution'
                 )
                 st.plotly_chart(fig_category, use_container_width=True)
             else:
@@ -265,32 +333,63 @@ with tab3:
         st.warning("⏳ No data available for statistics")
 
 with tab4:
-    st.header("📋 Raw Data Tables")
+    st.header("📋 Real-Time Data Table")
+    st.caption("Menampilkan data terbaru dari Speed Layer dan Batch Layer")
     
     if not df_main.empty:
-        # Show available columns
-        display_columns = ['timestamp', 'location', 'latitude', 'longitude', 'aqi_value', 'traffic_level']
+        # Prepare display dataframe with WIB timestamps
+        display_df = df_main.copy()
         
-        # Add optional columns if they exist
-        if 'is_peak_hour' in df_main.columns:
-            display_columns.append('is_peak_hour')
-        if 'aqi_category' in df_main.columns:
-            display_columns.append('aqi_category')
+        # Select and rename columns for display
+        display_columns = {
+            'timestamp_wib': 'Timestamp (WIB)',
+            'location': 'Location',
+            'aqi_value': 'AQI Value',
+            'aqi_category': 'AQI Category',
+            'traffic_level': 'Traffic Level',
+            'is_peak_hour_display': 'Peak Hour',
+            'latitude': 'Latitude',
+            'longitude': 'Longitude'
+        }
         
         # Filter to only existing columns
-        display_columns = [col for col in display_columns if col in df_main.columns]
+        available_columns = {k: v for k, v in display_columns.items() if k in display_df.columns}
         
+        # Create display dataframe
+        df_display = display_df[list(available_columns.keys())].copy()
+        df_display = df_display.rename(columns=available_columns)
+        
+        # Sort by timestamp (most recent first)
+        df_display = df_display.sort_values('Timestamp (WIB)', ascending=False)
+        
+        # Display info
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Records", len(df_display))
+        with col2:
+            if 'AQI Value' in df_display.columns:
+                avg_aqi = df_display['AQI Value'].mean()
+                st.metric("Average AQI", f"{avg_aqi:.1f}")
+        with col3:
+            if 'Traffic Level' in df_display.columns:
+                avg_traffic = df_display['Traffic Level'].mean()
+                st.metric("Average Traffic", f"{avg_traffic:.1f}")
+        
+        st.markdown("---")
+        
+        # Display table
         st.dataframe(
-            df_main[display_columns].head(100),
-            use_container_width=True
+            df_display.head(100),
+            use_container_width=True,
+            hide_index=True
         )
         
         # Download button
-        csv = df_main[display_columns].to_csv(index=False)
+        csv = df_display.to_csv(index=False)
         st.download_button(
-            label="💾 Download CSV",
+            label="💾 Download CSV (Top 100 Records)",
             data=csv,
-            file_name="traffic_pollution_data.csv",
+            file_name=f"traffic_pollution_realtime_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv"
         )
     else:
