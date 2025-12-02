@@ -11,16 +11,24 @@ class DataRepository:
         self.db_connection = db_connection
 
     def insert_location_data(self, location_data: LocationData) -> bool:
-        """Insert location data into raw_data table."""
+        """Insert location data into raw_data table with peak hours and AQI category."""
         conn = None
         try:
             conn = self.db_connection.get_connection()
             if not conn:
                 return False
+            
+            # Import StreamProcessor to use its helper methods
+            from .stream_processor import StreamProcessor
+            
+            # Determine peak hour and AQI category
+            is_peak = StreamProcessor.is_peak_hour(location_data.timestamp)
+            aqi_category = StreamProcessor.get_aqi_category(location_data.aqi_value) if location_data.aqi_value else "Unknown"
 
             insert_query = text("""
-            INSERT INTO raw_data (timestamp, location, latitude, longitude, aqi_value, traffic_level)
-            VALUES (:timestamp, :location, :latitude, :longitude, :aqi_value, :traffic_level)
+            INSERT INTO raw_data 
+            (timestamp, location, latitude, longitude, aqi_value, aqi_category, traffic_level, is_peak_hour)
+            VALUES (:timestamp, :location, :latitude, :longitude, :aqi_value, :aqi_category, :traffic_level, :is_peak_hour)
             """)
 
             conn.execute(insert_query, {
@@ -29,7 +37,9 @@ class DataRepository:
                 'latitude': location_data.latitude,
                 'longitude': location_data.longitude,
                 'aqi_value': location_data.aqi_value,
-                'traffic_level': location_data.traffic_level
+                'aqi_category': aqi_category,
+                'traffic_level': location_data.traffic_level,
+                'is_peak_hour': is_peak
             })
             conn.commit()
             return True

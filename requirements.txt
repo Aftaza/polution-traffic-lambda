@@ -4,6 +4,7 @@ numpy
 requests
 psycopg2-binary
 pydeck
+plotly            # Interactive charts for peak hours analysis
 sqlalchemy
 flask            # Pustaka untuk membuat API Service
 apscheduler      # Pustaka untuk menjalankan job polling berkala

@@ -225,3 +225,52 @@ class ServingLayer:
         finally:
             if conn:
                 conn.close()
+    
+    def get_peak_hours_analysis(self, days: int = 7) -> pd.DataFrame:
+        """
+        Get peak hours analysis data for the dashboard.
+        This combines data from peak_hours_analysis table.
+        
+        Args:
+            days: Number of days to look back
+        
+        Returns:
+            DataFrame with hourly aggregations including is_peak_hour indicator
+        """
+        try:
+            engine = self.db_connection.get_engine()
+            if not engine:
+                return pd.DataFrame()
+            
+            cutoff_date = (datetime.now() - timedelta(days=days)).date()
+            
+            # Get hourly aggregated data with peak hour indicators
+            query = """
+            SELECT 
+                hour,
+                AVG(avg_traffic_level) as avg_traffic,
+                AVG(avg_aqi_value) as avg_aqi,
+                MAX(CASE WHEN is_peak_hour THEN 1 ELSE 0 END) as is_peak,
+                SUM(total_records) as total_records
+            FROM peak_hours_analysis
+            WHERE date >= %s
+            GROUP BY hour
+            ORDER BY hour
+            """
+            
+            df = pd.read_sql(query, engine, params=(cutoff_date,))
+            
+            if not df.empty:
+                # Ensure data types
+                df['hour'] = df['hour'].astype(int)
+                df['avg_traffic'] = df['avg_traffic'].astype(float)
+                df['avg_aqi'] = df['avg_aqi'].astype(float)
+                df['is_peak'] = df['is_peak'].astype(bool)
+                
+                logging.info(f"📊 Serving Layer: Peak hours analysis ({len(df)} hours)")
+            
+            return df
+            
+        except Exception as e:
+            logging.error(f"Error getting peak hours analysis: {e}")
+            return pd.DataFrame()
