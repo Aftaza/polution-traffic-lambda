@@ -23,10 +23,17 @@ class AQICNAPIClient:
     
     def __init__(self, config: APIConfiguration):
         self.token = config.aqicn_token
-        self.base_url = "https://api.waqi.info/feed/geo"
+        self.base_url = "https://api.waqi.info/feed"
     
-    def get_aqi_data(self, lat: float, lon: float) -> Dict[str, Any]:
-        """Get AQI data for a specific location."""
-        url = f"{self.base_url}:{lat};{lon}/?token={self.token}"
+    def get_aqi_data(self, station_id: str) -> Dict[str, Any]:
+        """Get AQI data for a specific station ID.
+        
+        Args:
+            station_id: The AQICN station ID (e.g., 'A416857' for Depok)
+            
+        Returns:
+            Dict containing AQI data from the station
+        """
+        url = f"{self.base_url}/{station_id}/?token={self.token}"
         response = requests.get(url)
         return response.json()

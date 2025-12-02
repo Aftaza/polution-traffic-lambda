@@ -25,17 +25,18 @@ class IngestionService:
         self.kafka_producer = KafkaProducerWrapper()
         
         # Default locations for polling
+        # Note: id_station is used for AQICN API, lat/lon are used for TomTom API
         self.polling_locations = [
-            {"lat": -6.1754, "lon": 106.8272, "name": "Bundaran HI"},
-            {"lat": -6.2297, "lon": 106.7749, "name": "Palmerah"},
-            {"lat": -6.2420, "lon": 106.8080, "name": "Blok M"},
-            {"lat": -6.2605, "lon": 106.9038, "name": "Bekasi Barat"},
-            {"lat": -6.1770, "lon": 106.6000, "name": "Bandara Soetta"},
-            {"lat": -6.1911, "lon": 106.8491, "name": "Kemayoran"},
-            {"lat": -6.2831, "lon": 106.7212, "name": "Pondok Indah"},
-            {"lat": -6.1523, "lon": 106.8650, "name": "Tanjung Priok"},
-            {"lat": -6.1400, "lon": 106.8200, "name": "Pluit"},
-            {"lat": -6.3000, "lon": 106.8200, "name": "Cilandak"}
+            {"id_station": "A521365", "lat": -6.1861, "lon": 106.8236, "name": "Kebon Sirih"},
+            {"id_station": "A495982", "lat": -6.1593, "lon": 106.8180, "name": "Krukut"},
+            {"id_station": "A416842", "lat": -6.2154, "lon": 106.8030, "name": "GBK, Gelora"},
+            {"id_station": "A531565", "lat": -6.2338, "lon": 106.8769, "name": "Jakarta Timur Kebon Nanas"},
+            {"id_station": "A515938", "lat": -6.1756, "lon": 106.6449, "name": "Tangerang Benteng Betawi"},
+            {"id_station": "A521380", "lat": -6.1714, "lon": 106.7622, "name": "Kedoya Utara"},
+            {"id_station": "A570235", "lat": -6.2224, "lon": 106.7883, "name": "Grogol Utara"},
+            {"id_station": "A537937", "lat": -6.2373, "lon": 106.7861, "name": "Gunung"},
+            {"id_station": "A511573", "lat": -6.3498, "lon": 106.7782, "name": "Cinere"},
+            {"id_station": "@8294", "lat": -6.1911, "lon": 106.8491, "name": "Kemayoran"}
         ]
     
     def fetch_and_insert_data(self) -> List[IngestionResult]:
@@ -46,11 +47,13 @@ class IngestionService:
             lat = location["lat"]
             lon = location["lon"]
             name = location["name"]
+            id_station = location["id_station"]
             
             try:
                 # Fetch data from APIs
+                # TomTom uses lat/lon, AQICN uses station_id
                 traffic_data = self.tomtom_client.get_traffic_data(lat, lon)
-                aqi_data = self.aqicn_client.get_aqi_data(lat, lon)
+                aqi_data = self.aqicn_client.get_aqi_data(id_station)
                 
                 # Extract and process data
                 ingestion_result = DataProcessor.extract_location_data(
