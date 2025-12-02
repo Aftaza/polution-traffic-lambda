@@ -196,7 +196,64 @@ docker-compose restart ingestion_service
 docker-compose restart streamlit_app
 ```
 
-### Option 2: Streamlit Cloud Deployment
+### Option 2: VPS Production Deployment (Recommended for Production) ⭐
+
+Deploy ke VPS dengan Nginx reverse proxy untuk akses publik melalui port 80/443.
+
+#### Quick Start
+
+```bash
+# 1. Clone repository di VPS
+git clone <repository-url>
+cd case-based
+
+# 2. Setup environment
+cp .env.example .env
+nano .env  # Add your API keys
+
+# 3. Deploy with production config
+docker-compose -f docker-compose.prod.yml up -d
+
+# 4. Access dashboard
+# HTTP:  http://your-vps-ip
+# HTTPS: https://your-domain.com (after SSL setup)
+```
+
+#### Features
+
+- ✅ **Nginx Reverse Proxy** - Port 80/443 untuk akses publik
+- ✅ **WebSocket Support** - Untuk Streamlit real-time updates
+- ✅ **SSL/HTTPS Ready** - Support Let's Encrypt & Cloudflare
+- ✅ **Rate Limiting** - Protection dari abuse
+- ✅ **Security Headers** - XSS, CSRF protection
+- ✅ **Auto-restart** - Semua services restart otomatis
+
+#### Production Architecture
+
+```
+Internet (Port 80/443)
+    ↓
+Nginx Reverse Proxy (Container)
+    ↓
+Streamlit App:8501 (Internal)
+    ↓
+PostgreSQL + Kafka + Services (Internal Network)
+```
+
+#### Detailed Guide
+
+Untuk panduan lengkap VPS deployment termasuk:
+- Server setup & firewall configuration
+- SSL certificate setup (Let's Encrypt, Cloudflare, Self-signed)
+- Monitoring & maintenance
+- Backup & restore
+- Troubleshooting
+
+**📖 Lihat:** [docs/VPS_DEPLOYMENT.md](docs/VPS_DEPLOYMENT.md)
+
+---
+
+### Option 3: Streamlit Cloud Deployment
 
 #### Prerequisites
 - GitHub repository
@@ -223,79 +280,6 @@ git push origin main
      POSTGRES_USER = "pid_user"
      POSTGRES_PASSWORD = "your-password"
      ```
-
-3. **Deploy Database Separately:**
-   - Use managed PostgreSQL (e.g., AWS RDS, DigitalOcean)
-   - Run `init.sql` to create tables
-   - Update connection string in Streamlit secrets
-
-**Note:** Streamlit Cloud deployment hanya untuk dashboard. Services lain (Kafka, Speed Layer, Batch Layer) harus di-deploy terpisah.
-
-### Option 3: Production Server Deployment
-
-#### Using Docker Compose on VPS
-
-1. **Setup VPS:**
-```bash
-# SSH to server
-ssh user@your-server-ip
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
-
-# Install Docker Compose
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-```
-
-2. **Clone and Configure:**
-```bash
-git clone <repository-url>
-cd case-based
-cp .env.example .env
-nano .env  # Add your API keys
-```
-
-3. **Deploy:**
-```bash
-# Start services
-docker-compose up -d
-
-# Setup firewall
-sudo ufw allow 8501/tcp  # Streamlit
-sudo ufw allow 5432/tcp  # PostgreSQL (if needed)
-```
-
-4. **Setup Reverse Proxy (Optional):**
-
-Using Nginx:
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:8501;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-    }
-}
-```
-
-5. **Setup SSL (Optional):**
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
-```
-
----
-
-## 📊 Usage
-
-### Access Dashboard
 
 **Local:**
 ```
