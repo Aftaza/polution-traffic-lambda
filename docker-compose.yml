@@ -33,7 +33,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1" ]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -71,12 +71,19 @@ services:
     env_file:
       - .env
     environment:
+      # Database Configuration
       POSTGRES_HOST: db
       POSTGRES_DB: ${POSTGRES_DB:-pid_db}
       POSTGRES_USER: ${POSTGRES_USER:-pid_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pid_password}
+
+      # Kafka Configuration
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: traffic-aqi-data
+
+      # API Keys - Required for external API polling
+      TOMTOM_API_KEY: ${TOMTOM_API_KEY}
+      AQICN_TOKEN: ${AQICN_TOKEN}
     depends_on:
       kafka:
         condition: service_healthy
