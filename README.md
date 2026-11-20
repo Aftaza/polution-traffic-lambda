@@ -438,11 +438,13 @@ netstat -ano | findstr :8501  # Windows
 
 Detailed documentation available in `docs/` folder:
 
-- **[ARCHITECTURE_ANALYSIS.md](docs/ARCHITECTURE_ANALYSIS.md)** - Lambda Architecture deep dive
-- **[ENV_ANALYSIS.md](docs/ENV_ANALYSIS.md)** - Environment variables guide
-- **[TIMEZONE_RAWDATA_UPDATE.md](docs/TIMEZONE_RAWDATA_UPDATE.md)** - Timezone handling
-- **[VISUALIZATION_UPDATE.md](docs/VISUALIZATION_UPDATE.md)** - Visualization features
-- **[MIGRATION_SUMMARY.md](docs/MIGRATION_SUMMARY.md)** - Feature migration notes
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Components, data flow, database schema
+- **[ARCHITECTURE_ANALYSIS.md](docs/ARCHITECTURE_ANALYSIS.md)** - Why a Lambda Architecture, and how the layers connect
+- **[TECHNICAL_ANALYSIS_DOCUMENTATION.md](docs/TECHNICAL_ANALYSIS_DOCUMENTATION.md)** - Analysis pipeline and models
+- **[ANALYSIS_QUICKSTART.md](docs/ANALYSIS_QUICKSTART.md)** - Running the analysis pipeline
+- **[ENV_ANALYSIS.md](docs/ENV_ANALYSIS.md)** - Environment variables
+- **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** and **[VPS_DEPLOYMENT.md](docs/VPS_DEPLOYMENT.md)** - Deployment
+- **[USER_GUIDE.md](docs/USER_GUIDE.md)** - Using the dashboard
 
 ---
 

@@ -418,3 +418,5 @@ agent/
 nginx/ssl/*.pem
 nginx/ssl/*.key
 nginx/ssl/*.crt
+# AI agent workspace
+.agent/
